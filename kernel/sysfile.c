@@ -252,7 +252,7 @@ create(char *path, short type, short major, short minor)
   if((ip = dirlookup(dp, name, 0)) != 0){
     iunlockput(dp);
     ilock(ip);
-    if(type == T_FILE && (ip->type == T_FILE || ip->type == T_DEVICE))
+    if(type == T_FILE && (ip->type == T_FILE || ip->type == T_DEVICE || ip->type == T_SYMLN))
       return ip;
     iunlockput(ip);
     return 0;
@@ -315,7 +315,19 @@ sys_open(void)
       return -1;
     }
   }
-
+  
+  char dst_path[MAXPATH];
+  while(ip->type == T_SYMLN){
+    memset(dst_path, 0, MAXPATH);
+    readi(ip, 0, (uint64)dst_path, 0, MAXPATH);
+    iunlock(ip);
+    if((ip = namei(dst_path))==0){
+      end_op();
+      return -1;
+    }
+    ilock(ip);
+  }
+  
   if(ip->type == T_DEVICE && (ip->major < 0 || ip->major >= NDEV)){
     iunlockput(ip);
     end_op();
@@ -483,4 +495,47 @@ sys_pipe(void)
     return -1;
   }
   return 0;
+}
+
+uint64
+sys_lseek(void)
+{
+  struct file *fd;
+  int offset;
+  int whence;
+
+  if(argfd(0, 0, &fd) < 0 || argint(2, &offset) < 0 || argint(1, &whence) < 0)
+    return -1;
+  return fileseek(fd, offset, whence);
+}
+
+uint64
+sys_symln(void)
+{
+  char dst_path[MAXPATH], src_path[MAXPATH];
+  int fd; 
+  struct inode *ip;
+  int n;
+
+  if((n = argstr(0, dst_path, MAXPATH)) < 0 || argstr(1, src_path, MAXPATH) < 0)
+    return -1;
+
+  begin_op();
+
+  ip = create(src_path, T_SYMLN, 0, 0);  // create empty i-node  
+  if(ip == 0){
+    end_op();
+    return -1;
+  }
+
+  if(writei(ip, 0, (uint64)dst_path, 0, MAXPATH)!=MAXPATH){  // write path on new i-node to refer
+    end_op();
+    iunlock(ip);
+    return -1;
+  }
+
+  iunlock(ip);
+  end_op();
+
+  return fd;
 }

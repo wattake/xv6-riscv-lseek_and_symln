@@ -129,6 +129,21 @@ fileread(struct file *f, uint64 addr, int n)
   return r;
 }
 
+int
+fileseek(struct file *f, int offset, int whence){
+  if(whence == SEEK_SET){
+    f->off = offset;
+  } else if(whence == SEEK_CUR){
+    f->off += offset;
+  } else if(whence == SEEK_END){
+    f->off = f->ip->size + offset;
+  }else{
+    panic("fileseek");
+  }
+  return f->off;
+}
+
+
 // Write to file f.
 // addr is a user virtual address.
 int

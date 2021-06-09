@@ -38,3 +38,9 @@ struct devsw {
 extern struct devsw devsw[];
 
 #define CONSOLE 1
+
+enum seek_type{
+  SEEK_SET,
+  SEEK_CUR,
+  SEEK_END
+};
